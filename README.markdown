@@ -1,13 +1,13 @@
-## twitter_analyser
+# TwitterAnalyser
 
  * findes the most common twitter sequences, analyse social network, finds communities
 
-# Install
+## Install
 
  * sudo gem install bundler
  * bundle install
 
-# Run
+## Run
 
  * ruby lib/main.rb
 
