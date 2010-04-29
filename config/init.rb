@@ -25,6 +25,8 @@ end
 require 'spec/rake/spectask'
 require 'yamler'
 require 'sequel'
+require 'rgl/adjacency'
+require 'rgl/dot'
 
 module DataBase
   Config = Yamler.load('config/database.yml')

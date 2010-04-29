@@ -2,6 +2,7 @@ source :gemcutter
 
 gem "yamler"
 gem "sequel"
+gem "rgl"
 gem "social_network_analyser"
 
 group(:test) do
