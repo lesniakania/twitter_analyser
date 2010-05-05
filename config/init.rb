@@ -27,6 +27,7 @@ require 'yamler'
 require 'sequel'
 require 'rgl/adjacency'
 require 'rgl/dot'
+require 'gruff'
 
 module DataBase
   Config = Yamler.load('config/database.yml')
