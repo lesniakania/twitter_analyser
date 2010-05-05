@@ -1,3 +1,4 @@
+require 'lib/extensions'
 require 'lib/models/twitt'
 require 'lib/models/user'
 require 'lib/models/user_follower'
@@ -85,9 +86,15 @@ class TwitterAnalyser
   end
 
   def self.draw_page_ranks_statistics(dir='.')
-    community = Community.first(:parent_id => nil)
-    data = find_communities(community, 0, 2).sort { |c1, c2| c1.id <=> c2.id }.map { |c| [c.id, page_ranks_avg(c.id)] }
-    draw_chart("Page Rank Statistics", "community", "page ranks avg", data, File.join(dir, "page_rank_statistics_chart"))
+    communities = find_communities(Community.first(:parent_id => nil), 0, 2).sort { |c1, c2| c1.id <=> c2.id }
+    min = communities.map { |c| [c.id, page_ranks_min(c.id)] }
+    max = communities.map { |c| [c.id, page_ranks_max(c.id)] }
+    avg = communities.map { |c| [c.id, page_ranks_avg(c.id)] }
+    sd = communities.map { |c| [c.id, page_ranks_standard_deviation(c.id)] }
+    draw_chart("Page Rank Statistics - Min", "community", "page ranks min", min, File.join(dir, "page_rank_statistics_min_chart"))
+    draw_chart("Page Rank Statistics - Max", "community", "page ranks max", max, File.join(dir, "page_rank_statistics_max_chart"))
+    draw_chart("Page Rank Statistics - Avarage", "community", "page ranks avg", avg, File.join(dir, "page_rank_statistics_avg_chart"))
+    draw_chart("Page Rank Statistics - Standard Deviation", "community", "page ranks sd", sd, File.join(dir, "page_rank_statistics_sd_chart"))
   end
 
   def self.followers_percent(community_id)
@@ -110,14 +117,30 @@ class TwitterAnalyser
     end
   end
 
+  def self.page_ranks(community_id)
+    Community.first(:id => community_id).users.map { |u| u.page_rank }.compact
+  end
+
+  def self.page_ranks_min(community_id)
+    page_ranks(community_id).min.to_f.prec(2)
+  end
+
+  def self.page_ranks_max(community_id)
+    page_ranks(community_id).max.to_f.prec(2)
+  end
+
   def self.page_ranks_avg(community_id)
-    community_users = Community.first(:id => community_id).users
-    if community_users.count>0
-      page_rank = community_users.inject(0) { |sum, u| sum += u.page_rank.to_f }/community_users.count
-      ((page_rank*100).to_i)/100.0
+    page_ranks = page_ranks(community_id)
+    if page_ranks.size>0
+      (page_ranks.inject(0) { |sum, pr| sum += pr.to_f }/page_ranks.size).to_f.prec(2)
     else
       0.0
     end
+  end
+
+  def self.page_ranks_standard_deviation(community_id)
+    avg = page_ranks_avg(community_id)
+    Math.sqrt(page_ranks(community_id).map { |pr| (pr-avg)**2 }.inject(0) { |sum, e| sum += e }).to_f.prec(2)
   end
 
   protected

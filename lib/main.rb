@@ -9,8 +9,8 @@ def analyse(definition_sym, dir)
   TwitterAnalyser.draw_page_ranks_statistics(dir)
 end
 
-#t = TwitterAnalyser.new
-#t.compute_page_ranks!
+t = TwitterAnalyser.new
+t.compute_page_ranks!
 analyse(nil, 'groups')
 analyse(:weak_community, 'weak_communities')
 analyse(:strong_community, 'strong_communities')
