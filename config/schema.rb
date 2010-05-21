@@ -43,6 +43,7 @@ def create_communities_tables
     primary_key :id
     foreign_key :parent_id, :communities
     column :strength, :float
+    column :density, :float
   end
 
   DB.create_table :communities_users do

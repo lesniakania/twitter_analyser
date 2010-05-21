@@ -89,11 +89,11 @@ describe TwitterAnalyser do
 
       it "should find edges of detected communities properly" do
         community = Community.first(:parent_id => nil)
-        community_node = CommunityNode.new(community.id, community.users.count, community.strength)
+        community_node = CommunityNode.new(community.id, community.users.count, community.strength, community.density)
         community_edges = TwitterAnalyser.find_edges(community_node)
         community_edges.size.should == 2
-        community_edges.should include([CommunityNode.new(1, 6, nil), CommunityNode.new(2, 3, nil)])
-        community_edges.should include([CommunityNode.new(1, 6, nil), CommunityNode.new(3, 3 ,nil)])
+        community_edges.should include([CommunityNode.new(1, 6, nil, nil), CommunityNode.new(2, 3, nil, nil)])
+        community_edges.should include([CommunityNode.new(1, 6, nil, nil), CommunityNode.new(3, 3, nil, nil)])
       end
 
       it "should compute user follower dependencies % in communities" do

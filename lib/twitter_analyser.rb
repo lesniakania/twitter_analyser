@@ -16,6 +16,7 @@ class TwitterAnalyser
     puts 'Init started...'
     self.nodes = {}
     User.order(:id).limit(100).each do |u|
+    #User.order(:id).limit(6000).each do |u|
     #User.each do |u|
       self.nodes[u.id] = Node.new(u.id) if u.twitts.any? { |t| t.parent && t.parent.user_id }
     end
@@ -56,7 +57,7 @@ class TwitterAnalyser
 
   def self.draw_dendrogram(dir='.')
     community = Community.first(:parent_id => nil)
-    community_node = CommunityNode.new(community.id, community.users.count, community.strength)
+    community_node = CommunityNode.new(community.id, community.users.count, community.strength, community.density)
     community_edges = find_edges(community_node)
 
     dg = RGL::DirectedAdjacencyGraph.new
@@ -146,7 +147,7 @@ class TwitterAnalyser
   protected
 
   def save_all_communities(graph, parent)
-    community = Community.create(:parent => parent, :strength => graph.strength)
+    community = Community.create(:parent => parent, :strength => graph.strength, :density => graph.density)
     User.filter(:id => graph.community_nodes.map { |n| n.id }).each do |u|
       u.add_community(community)
       u.save
@@ -160,7 +161,7 @@ class TwitterAnalyser
     community_edges = []
     children = []
     Community.filter(:parent_id => community_node.id).each do |subcommunity|
-      child = CommunityNode.new(subcommunity.id, subcommunity.users.count, subcommunity.strength)
+      child = CommunityNode.new(subcommunity.id, subcommunity.users.count, subcommunity.strength, subcommunity.density)
       children << child
       community_edges += [[community_node, child]] + find_edges(child)
     end
