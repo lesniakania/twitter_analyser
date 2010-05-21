@@ -83,8 +83,8 @@ describe TwitterAnalyser do
       end
 
       it "should compute page ranks of all nodes and save it to database" do
-        @twitter_analyser.compute_page_ranks!
-        User.all? { |u| u.page_rank != nil }.should be_true
+        @twitter_analyser.compute_page_ranks!(@community_graph)
+        User.filter(:id => @community_graph.nodes.keys).all? { |u| u.page_rank != nil }.should be_true
       end
 
       it "should find edges of detected communities properly" do
@@ -110,7 +110,7 @@ describe TwitterAnalyser do
       end
 
       it "should draw page ranks statistics properly" do
-        @twitter_analyser.compute_page_ranks!
+        @twitter_analyser.compute_page_ranks!(@community_graph)
         lambda { TwitterAnalyser.draw_page_ranks_statistics("test") }.should_not raise_error
       end
     end

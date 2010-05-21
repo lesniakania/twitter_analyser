@@ -44,13 +44,13 @@ class TwitterAnalyser
     communities_graph
   end
 
-  def compute_page_ranks!
+  def compute_page_ranks!(graph)
     # reset
     User.update(:page_rank => nil)
     # compute
-    self.nodes.keys.each do |n_id|
+    graph.nodes.keys.each do |n_id|
       u = User.first(:id => n_id)
-      u.page_rank = SocialNetworkAnalyser.page_rank(self.graph, n_id)
+      u.page_rank = SocialNetworkAnalyser.page_rank(graph, n_id)
       u.save
     end
   end
