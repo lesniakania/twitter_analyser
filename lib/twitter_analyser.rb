@@ -67,14 +67,14 @@ class TwitterAnalyser
     `rm -rf images/#{dir}/*.dot`
   end
 
-  def self.find_communities(community, level, stop_level)
+  def self.find_communities(community, min_strength)
     communities = []
-    if level == stop_level
+    if community.parent && community.strength<=min_strength
       communities << community
     else
       subcommunities = Community.filter(:parent_id => community.id).all
       subcommunities.each do |sub|
-        communities += find_communities(sub, level+1, stop_level)
+        communities += find_communities(sub, min_strength)
       end
     end
     communities
@@ -82,12 +82,12 @@ class TwitterAnalyser
 
   def self.draw_followers_statistics(dir='.')
     community = Community.first(:parent_id => nil)
-    data = find_communities(community, 0, 2).sort { |c1, c2| c1.id <=> c2.id }.map { |c| [c.id, followers_percent(c.id)] }
+    data = find_communities(community, 0.5).sort { |c1, c2| c1.id <=> c2.id }.map { |c| [c.id, followers_percent(c.id)] }
     draw_chart("Followers Statistics", "community", "followers percent", data, File.join(dir, "followers_statistics_chart"))
   end
 
   def self.draw_page_ranks_statistics(dir='.')
-    communities = find_communities(Community.first(:parent_id => nil), 0, 2).sort { |c1, c2| c1.id <=> c2.id }
+    communities = find_communities(Community.first(:parent_id => nil), 0.5).sort { |c1, c2| c1.id <=> c2.id }
     min = communities.map { |c| [c.id, page_ranks_min(c.id)] }
     max = communities.map { |c| [c.id, page_ranks_max(c.id)] }
     avg = communities.map { |c| [c.id, page_ranks_avg(c.id)] }
