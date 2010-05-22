@@ -82,7 +82,7 @@ describe TwitterAnalyser do
         UserFollower.create(:user => @users[0], :follower => @users[4])
 
         @community_graph = @twitter_analyser.detect_communities!(:weak_community)
-        TwitterAnalyser.cutoff_communities(Community.root, 0.5)
+        TwitterAnalyser.cutoff_communities(Community.root, 90)
       end
 
       it "should compute page ranks of all nodes and save it to database" do
@@ -136,7 +136,7 @@ describe TwitterAnalyser do
 
   describe "compute statistics" do
     it "should compute page ranks statistics properly" do
-      TwitterAnalyser.stub!(:page_ranks).and_return([1, 2, 7])
+      TwitterAnalyser.stub!(:page_ranks).and_return([[1, ''], [2, ''], [7, '']])
       TwitterAnalyser.page_ranks_min(nil)[:page_rank].should == 1
       TwitterAnalyser.page_ranks_max(nil)[:page_rank].should == 7
       TwitterAnalyser.page_ranks_avg(nil).should == 3.33

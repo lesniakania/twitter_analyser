@@ -48,9 +48,9 @@ class TwitterAnalyser
     # reset
     User.update(:page_rank => nil)
     # compute
-    graph.nodes.keys.each do |n_id|
-      u = User.first(:id => n_id)
-      u.page_rank = SocialNetworkAnalyser.page_rank(graph, n_id)
+    graph.community_nodes.each do |n|
+      u = User.first(:id => n.id)
+      u.page_rank = SocialNetworkAnalyser.page_rank(graph, n.id)
       u.save
     end
   end
@@ -87,12 +87,12 @@ class TwitterAnalyser
     communities = Community.filter(:cutoff => true).all
     page_rank_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:page_rank]] }
     page_rank_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:page_rank]] }
-    users_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:user]] }
-    users_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:user]] }
+    users_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:user]] }.map { |pair| "#{pair[0]} => #{pair[1]}" }.join(', ')
+    users_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:user]] }.map { |pair| "#{pair[0]} => #{pair[1]}" }.join(', ')
     avg = communities.map { |c| [c.id, page_ranks_avg(c.id)] }
     sd = communities.map { |c| [c.id, page_ranks_standard_deviation(c.id)] }
-    draw_chart("Page Rank Statistics - Min", "community", "page ranks min", page_rank_min, File.join(dir, "page_rank_statistics_min_chart"), users_min)
-    draw_chart("Page Rank Statistics - Max", "community", "page ranks max", page_rank_max, File.join(dir, "page_rank_statistics_max_chart"), users_max)
+    draw_chart("Page Rank Statistics - Min", users_min, "page ranks min", page_rank_min, File.join(dir, "page_rank_statistics_min_chart"))
+    draw_chart("Page Rank Statistics - Max", users_max, "page ranks max", page_rank_max, File.join(dir, "page_rank_statistics_max_chart"))
     draw_chart("Page Rank Statistics - Avarage", "community", "page ranks avg", avg, File.join(dir, "page_rank_statistics_avg_chart"))
     draw_chart("Page Rank Statistics - Standard Deviation", "community", "page ranks sd", sd, File.join(dir, "page_rank_statistics_sd_chart"))
   end
@@ -118,21 +118,21 @@ class TwitterAnalyser
   end
 
   def self.page_ranks(community_id)
-    Community.first(:id => community_id).users.map { |u| u.page_rank }.compact
+    Community.first(:id => community_id).users.map { |u| [u.page_rank, u.name ? u.name : "unknown"] }.compact
   end
 
   def self.page_ranks_min(community_id)
-    min = page_ranks(community_id).min.to_f
-    { :page_rank => min.prec(2), :user => User.first(:page_rank => min) }
+    min = page_ranks(community_id).min { |a, b| a[0] <=> b[0] }
+    { :page_rank => min[0].to_f.prec(2), :user => min[1] }
   end
 
   def self.page_ranks_max(community_id)
-    max = page_ranks(community_id).max.to_f
-    { :page_rank => max.prec(2), :user => User.first(:page_rank => max) }
+    max = page_ranks(community_id).max { |a, b| a[0] <=> b[0] }
+    { :page_rank => max[0].to_f.prec(2), :user => max[1] }
   end
 
   def self.page_ranks_avg(community_id)
-    page_ranks = page_ranks(community_id)
+    page_ranks = page_ranks(community_id).map { |p| p[0] }
     if page_ranks.size>0
       (page_ranks.inject(0) { |sum, pr| sum += pr.to_f }/page_ranks.size).to_f.prec(2)
     else
@@ -142,7 +142,7 @@ class TwitterAnalyser
 
   def self.page_ranks_standard_deviation(community_id)
     avg = page_ranks_avg(community_id)
-    Math.sqrt(page_ranks(community_id).map { |pr| (pr-avg)**2 }.inject(0) { |sum, e| sum += e }).to_f.prec(2)
+    Math.sqrt(page_ranks(community_id).map { |pr| (pr[0]-avg)**2 }.inject(0) { |sum, e| sum += e }).to_f.prec(2)
   end
 
   protected
@@ -169,7 +169,7 @@ class TwitterAnalyser
     community_edges
   end
 
-  def self.draw_chart(title, x_label, y_label, data, file_name, options=[])
+  def self.draw_chart(title, x_label, y_label, data, file_name)
     bar = Gruff::Bar.new
 
     bar.title = title
