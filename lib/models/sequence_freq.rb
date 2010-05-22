@@ -1,9 +1,13 @@
 class SequenceFreq < Sequel::Model
   unrestrict_primary_key
-  
+
+  def nodes
+    self.key.split("-").map { |id| id.to_i }
+  end
+
   def chart_edges
     chart_edges = []
-    self.key.split("-").each_with_index do |o,i|
+    nodes.map { |n| n.to_s }.each_with_index do |o,i|
       chart_edges << o if i == 0 or i % 2 == 1
     end
     chart_edges

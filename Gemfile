@@ -1,4 +1,4 @@
-source :gemcutter
+#source :gemcutter
 
 gem "yamler"
 gem "sequel"

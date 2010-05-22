@@ -1,6 +1,5 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 require 'twitter_analyser'
-require 'models/community_node'
 
 
 describe TwitterAnalyser do
@@ -141,6 +140,33 @@ describe TwitterAnalyser do
       TwitterAnalyser.page_ranks_max(nil)[:page_rank].should == 7
       TwitterAnalyser.page_ranks_avg(nil).should == 3.33
       TwitterAnalyser.page_ranks_standard_deviation(nil).should == 4.55
+    end
+
+    describe "sequences" do
+      before(:each) do
+        @root = Community.create
+        @c1 = Community.create(:parent => @root, :cutoff => true)
+        @c2 = Community.create(:parent => @root, :cutoff => true)
+        users = 4.times.map { User.create }
+        users.each { |u| @root.add_user(u) }
+        users[1..2].each { |u| @c1.add_user(u) }
+        @key1 = users.map { |u| u.id }.join('-')
+        @key2 = users[1..2].map { |u| u.id }.join('-')
+        SequenceFreq.create(:key => @key1)
+        SequenceFreq.create(:key => @key2)
+      end
+
+      it "should compute percent of sequences per community" do
+        TwitterAnalyser.sequence_percent(@root).should == 100
+        TwitterAnalyser.sequence_percent(@c1).should == 50
+        TwitterAnalyser.sequence_percent(@c2).should == 0
+        TwitterAnalyser.draw_sequences_percent_statistics('test')
+      end
+
+      it "should compute group members count for most frequent sequences" do
+        TwitterAnalyser.frequent_sequences_group_counts.should == [[@key1, 4], [@key2, 2]]
+        TwitterAnalyser.draw_frequent_sequences_statistics('test')
+      end
     end
   end
 end

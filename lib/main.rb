@@ -5,6 +5,13 @@ def analyse(definition_sym, dir)
   t = TwitterAnalyser.new
   t.detect_communities!(definition_sym)
   TwitterAnalyser.cutoff_communities(Community.root, 50)
+
+  graphs = Graph.cutoff(t.graph, 50)
+  graphs.each do |graph|
+    TwitterAnalyser.compute_page_ranks!(graph)
+  end
+  TwitterAnalyser.draw_page_ranks_statistics(dir)
+
   TwitterAnalyser.draw_dendrogram(dir)
   TwitterAnalyser.draw_followers_statistics(dir)
 end

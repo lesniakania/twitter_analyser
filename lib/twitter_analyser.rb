@@ -1,9 +1,10 @@
-require 'lib/extensions'
-require 'lib/models/twitt'
-require 'lib/models/user'
-require 'lib/models/user_follower'
-require 'lib/models/community'
-require 'lib/models/community_node'
+require 'extensions'
+require 'models/twitt'
+require 'models/user'
+require 'models/user_follower'
+require 'models/community'
+require 'models/community_node'
+require 'models/sequence_freq'
 require 'social_network_analyser'
 require 'graph'
 require 'node'
@@ -53,6 +54,27 @@ class TwitterAnalyser
       u.page_rank = SocialNetworkAnalyser.page_rank(graph, n.id)
       u.save
     end
+  end
+
+  def self.sequence_percent(community)
+    community_nodes = community.users.map { |u| u.id }
+    (SequenceFreq.all.select { |s| s.nodes.all? { |n| community_nodes.include?(n) } }.size/SequenceFreq.count.to_f)*100
+  end
+
+  def self.frequent_sequences_group_counts(limit=10)
+    SequenceFreq.order(:frequency).limit(limit).map do |seq|
+      [seq.key, Community.all.select { |c| seq.nodes.all? { |n| c.users.map { |u| u.id }.include?(n)  } }.min { |c1, c2| c1.users.count <=> c2.users.count }.users.count]
+    end
+  end
+
+  def self.draw_sequences_percent_statistics(dir)
+    data = Community.filter(:cutoff => true).all.map { |c| [c.id, sequence_percent(c)] }
+    draw_chart("Sequences percent per community", "community", "sequences percent", data, File.join(dir, "sequences_percent_statistics_chart"))
+  end
+
+  def self.draw_frequent_sequences_statistics(dir)
+    data = frequent_sequences_group_counts
+    draw_chart("Frequent sequences group count", "sequence", "group count", data, File.join(dir, "frequent_sequences_statistics_chart"))
   end
 
   def self.draw_dendrogram(dir='.')
