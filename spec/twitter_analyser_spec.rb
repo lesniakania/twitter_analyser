@@ -1,6 +1,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 require 'twitter_analyser'
-require 'lib/models/community_node'
+require 'models/community_node'
 
 
 describe TwitterAnalyser do
@@ -80,6 +80,9 @@ describe TwitterAnalyser do
         UserFollower.create(:user => @users[0], :follower => @users[1])
         UserFollower.create(:user => @users[2], :follower => @users[0])
         UserFollower.create(:user => @users[0], :follower => @users[4])
+
+        @community_graph = @twitter_analyser.detect_communities!(:weak_community)
+        TwitterAnalyser.cutoff_communities(Community.root, 0.5)
       end
 
       it "should compute page ranks of all nodes and save it to database" do
@@ -115,12 +118,27 @@ describe TwitterAnalyser do
       end
     end
   end
-  
+
+  describe "cutoff" do
+    it "should cutoff cummunities properly" do
+      root = Community.create(:strength => 0)
+      parent = Community.create(:parent => root, :strength => 66)
+      Community.create(:parent => root, :strength => 77)
+      communities = [
+        Community.create(:parent => parent, :strength => 45),
+        Community.create(:parent => parent, :strength => 40),
+        Community.create(:parent => parent, :strength => 35)
+      ]
+      TwitterAnalyser.cutoff_communities(Community.root, 50)
+      Community.filter(:cutoff => true).map { |c| c.id }.sort.should == communities.map { |c| c.id }.sort
+    end
+  end
+
   describe "compute statistics" do
     it "should compute page ranks statistics properly" do
       TwitterAnalyser.stub!(:page_ranks).and_return([1, 2, 7])
-      TwitterAnalyser.page_ranks_min(nil).should == 1
-      TwitterAnalyser.page_ranks_max(nil).should == 7
+      TwitterAnalyser.page_ranks_min(nil)[:page_rank].should == 1
+      TwitterAnalyser.page_ranks_max(nil)[:page_rank].should == 7
       TwitterAnalyser.page_ranks_avg(nil).should == 3.33
       TwitterAnalyser.page_ranks_standard_deviation(nil).should == 4.55
     end

@@ -56,7 +56,7 @@ class TwitterAnalyser
   end
 
   def self.draw_dendrogram(dir='.')
-    community = Community.first(:parent_id => nil)
+    community = Community.root
     community_node = CommunityNode.new(community.id, community.users.count, community.strength, community.density)
     community_edges = find_edges(community_node)
 
@@ -67,33 +67,32 @@ class TwitterAnalyser
     `rm -rf images/#{dir}/*.dot`
   end
 
-  def self.find_communities(community, min_strength)
-    communities = []
+  def self.cutoff_communities(community, min_strength)
     if community.parent && community.strength<=min_strength
-      communities << community
+      community.update(:cutoff => true)
     else
       subcommunities = Community.filter(:parent_id => community.id).all
       subcommunities.each do |sub|
-        communities += find_communities(sub, min_strength)
+        cutoff_communities(sub, min_strength)
       end
     end
-    communities
   end
 
   def self.draw_followers_statistics(dir='.')
-    community = Community.first(:parent_id => nil)
-    data = find_communities(community, 0.5).sort { |c1, c2| c1.id <=> c2.id }.map { |c| [c.id, followers_percent(c.id)] }
+    data = Community.filter(:cutoff => true).all.map { |c| [c.id, followers_percent(c.id)] }
     draw_chart("Followers Statistics", "community", "followers percent", data, File.join(dir, "followers_statistics_chart"))
   end
 
   def self.draw_page_ranks_statistics(dir='.')
-    communities = find_communities(Community.first(:parent_id => nil), 0.5).sort { |c1, c2| c1.id <=> c2.id }
-    min = communities.map { |c| [c.id, page_ranks_min(c.id)] }
-    max = communities.map { |c| [c.id, page_ranks_max(c.id)] }
+    communities = Community.filter(:cutoff => true).all
+    page_rank_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:page_rank]] }
+    page_rank_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:page_rank]] }
+    users_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:user]] }
+    users_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:user]] }
     avg = communities.map { |c| [c.id, page_ranks_avg(c.id)] }
     sd = communities.map { |c| [c.id, page_ranks_standard_deviation(c.id)] }
-    draw_chart("Page Rank Statistics - Min", "community", "page ranks min", min, File.join(dir, "page_rank_statistics_min_chart"))
-    draw_chart("Page Rank Statistics - Max", "community", "page ranks max", max, File.join(dir, "page_rank_statistics_max_chart"))
+    draw_chart("Page Rank Statistics - Min", "community", "page ranks min", page_rank_min, File.join(dir, "page_rank_statistics_min_chart"), users_min)
+    draw_chart("Page Rank Statistics - Max", "community", "page ranks max", page_rank_max, File.join(dir, "page_rank_statistics_max_chart"), users_max)
     draw_chart("Page Rank Statistics - Avarage", "community", "page ranks avg", avg, File.join(dir, "page_rank_statistics_avg_chart"))
     draw_chart("Page Rank Statistics - Standard Deviation", "community", "page ranks sd", sd, File.join(dir, "page_rank_statistics_sd_chart"))
   end
@@ -123,11 +122,13 @@ class TwitterAnalyser
   end
 
   def self.page_ranks_min(community_id)
-    page_ranks(community_id).min.to_f.prec(2)
+    min = page_ranks(community_id).min.to_f
+    { :page_rank => min.prec(2), :user => User.first(:page_rank => min) }
   end
 
   def self.page_ranks_max(community_id)
-    page_ranks(community_id).max.to_f.prec(2)
+    max = page_ranks(community_id).max.to_f
+    { :page_rank => max.prec(2), :user => User.first(:page_rank => max) }
   end
 
   def self.page_ranks_avg(community_id)
@@ -168,7 +169,7 @@ class TwitterAnalyser
     community_edges
   end
 
-  def self.draw_chart(title, x_label, y_label, data, file_name)
+  def self.draw_chart(title, x_label, y_label, data, file_name, options=[])
     bar = Gruff::Bar.new
 
     bar.title = title
