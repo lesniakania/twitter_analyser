@@ -1,14 +1,15 @@
-require 'extensions'
-require 'models/twitt'
-require 'models/user'
-require 'models/user_follower'
-require 'models/community'
-require 'models/community_node'
-require 'models/sequence_freq'
+require 'lib/extensions'
+require 'lib/models/twitt'
+require 'lib/models/user'
+require 'lib/models/user_follower'
+require 'lib/models/community'
+require 'lib/models/community_node'
+require 'lib/models/sequence_freq'
 require 'social_network_analyser'
 require 'graph'
 require 'node'
 require 'edge'
+require 'lib/sequences/prefix_span'
 
 class TwitterAnalyser
   attr_accessor :graph, :nodes, :edges
@@ -16,18 +17,25 @@ class TwitterAnalyser
   def initialize
     puts 'Init started...'
     self.nodes = {}
-    User.order(:id).limit(100).each do |u|
-    #User.order(:id).limit(6000).each do |u|
+    #User.order(:id).limit(100).each do |u|
+    User.order(:id).limit(3000).each do |u|
     #User.each do |u|
       self.nodes[u.id] = Node.new(u.id) if u.twitts.any? { |t| t.parent && t.parent.user_id }
     end
     puts 'Users processed...'
     self.edges = []
+    twitts = []
     Twitt.filter('twitts.parent_id is not null').eager_graph(:parent).each do |set|
       edge = [self.nodes[set[:twitts].user_id], self.nodes[set[:parent].user_id]]
       self.edges << Edge.new(*edge) if edge.none? { |o| o.nil? }
+      twitts << set[:twitts]
     end
     puts 'Twitts processed...'
+
+    puts 'Prefix span started...'
+    PrefixSpan.new(twitts).find_frequent
+    puts 'Prefix span finished.'
+
     self.graph = Graph.new(self.nodes.values, self.edges)
     puts "Graph has #{self.graph.nodes.size} nodes."
     puts "And #{self.graph.edges.size} edges."
@@ -45,7 +53,7 @@ class TwitterAnalyser
     communities_graph
   end
 
-  def compute_page_ranks!(graph)
+  def self.compute_page_ranks!(graph)
     # reset
     User.update(:page_rank => nil)
     # compute
@@ -58,12 +66,21 @@ class TwitterAnalyser
 
   def self.sequence_percent(community)
     community_nodes = community.users.map { |u| u.id }
-    (SequenceFreq.all.select { |s| s.nodes.all? { |n| community_nodes.include?(n) } }.size/SequenceFreq.count.to_f)*100
+    if SequenceFreq.count > 0
+      (SequenceFreq.all.select { |s| s.nodes.all? { |n| community_nodes.include?(n) } }.size/SequenceFreq.count.to_f)*100
+    else
+      0.0
+    end
   end
 
   def self.frequent_sequences_group_counts(limit=10)
     SequenceFreq.order(:frequency).limit(limit).map do |seq|
-      [seq.key, Community.all.select { |c| seq.nodes.all? { |n| c.users.map { |u| u.id }.include?(n)  } }.min { |c1, c2| c1.users.count <=> c2.users.count }.users.count]
+      communities = Community.all.select { |c| seq.nodes.all? { |n| c.users.map { |u| u.id }.include?(n)  } }
+      if communities.empty?
+        [seq.key, 0]
+      else
+        [seq.key, communities.min { |c1, c2| c1.users.count <=> c2.users.count }.users.count]
+      end
     end
   end
 
@@ -74,7 +91,7 @@ class TwitterAnalyser
 
   def self.draw_frequent_sequences_statistics(dir)
     data = frequent_sequences_group_counts
-    draw_chart("Frequent sequences group count", "sequence", "group count", data, File.join(dir, "frequent_sequences_statistics_chart"))
+    draw_chart("Frequent sequences group count", "sequence", "group count", data, File.join(dir, "frequent_sequences_statistics_chart"), false)
   end
 
   def self.draw_dendrogram(dir='.')
@@ -191,12 +208,15 @@ class TwitterAnalyser
     community_edges
   end
 
-  def self.draw_chart(title, x_label, y_label, data, file_name)
+  def self.draw_chart(title, x_label, y_label, data, file_name, legend=true)
     bar = Gruff::Bar.new
 
     bar.title = title
     bar.x_axis_label = x_label
     bar.y_axis_label = y_label
+    unless legend
+      bar.hide_legend = true
+    end
 
     data.each do |id, e|
       bar.data(id, e)
