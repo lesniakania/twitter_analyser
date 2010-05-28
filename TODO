@@ -1,6 +1,2 @@
-2)utworzyć statystyki dotyczące procentu sekwencji zawartych w grupach
-3)dla danych najczęstszych sekwencji określić wielkość grupy w których się znajdują
-4)dla każdej grupy (po odcięciu) znaleźć jaki procent wszystkich sekwencji znajduje się w tej grupie
-
 7)implementacja pozostałych dwóch parametrów sieci społecznej – stabilność ( ilość węzłów nie zmieniających się w grupie w czasie)
 5)przeprowadzenie wszystkich statystyk dla poszczególnych okresów czasowych (pomiar dynamiki)

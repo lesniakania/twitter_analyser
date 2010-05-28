@@ -17,8 +17,8 @@ class TwitterAnalyser
   def initialize
     puts 'Init started...'
     self.nodes = {}
-    #User.order(:id).limit(100).each do |u|
-    User.order(:id).limit(3000).each do |u|
+    User.order(:id).limit(100).each do |u|
+    #User.order(:id).limit(3000).each do |u|
     #User.each do |u|
       self.nodes[u.id] = Node.new(u.id) if u.twitts.any? { |t| t.parent && t.parent.user_id }
     end
@@ -126,12 +126,12 @@ class TwitterAnalyser
     communities = Community.filter(:cutoff => true).all
     page_rank_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:page_rank]] }
     page_rank_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:page_rank]] }
-    users_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:user]] }.map { |pair| "#{pair[0]} => #{pair[1]}" }.join(', ')
-    users_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:user]] }.map { |pair| "#{pair[0]} => #{pair[1]}" }.join(', ')
+    users_min = communities.map { |c| [c.id, page_ranks_min(c.id)[:user]] }.map { |pair| "#{pair[0]} => #{pair[1]}" }.join("\n")
+    users_max = communities.map { |c| [c.id, page_ranks_max(c.id)[:user]] }.map { |pair| "#{pair[0]} => #{pair[1]}" }.join("\n")
     avg = communities.map { |c| [c.id, page_ranks_avg(c.id)] }
     sd = communities.map { |c| [c.id, page_ranks_standard_deviation(c.id)] }
-    draw_chart("Page Rank Statistics - Min", users_min, "page ranks min", page_rank_min, File.join(dir, "page_rank_statistics_min_chart"))
-    draw_chart("Page Rank Statistics - Max", users_max, "page ranks max", page_rank_max, File.join(dir, "page_rank_statistics_max_chart"))
+    draw_chart("Page Rank Statistics - Min", "community", "page ranks min", page_rank_min, File.join(dir, "page_rank_statistics_min_chart"), true, users_min)
+    draw_chart("Page Rank Statistics - Max", "community", "page ranks max", page_rank_max, File.join(dir, "page_rank_statistics_max_chart"), true, users_max)
     draw_chart("Page Rank Statistics - Avarage", "community", "page ranks avg", avg, File.join(dir, "page_rank_statistics_avg_chart"))
     draw_chart("Page Rank Statistics - Standard Deviation", "community", "page ranks sd", sd, File.join(dir, "page_rank_statistics_sd_chart"))
   end
@@ -157,7 +157,7 @@ class TwitterAnalyser
   end
 
   def self.page_ranks(community_id)
-    Community.first(:id => community_id).users.map { |u| [u.page_rank, u.name ? u.name : "unknown"] }.compact
+    Community.first(:id => community_id).users.map { |u| [u.page_rank, u.nick ? u.nick : "unknown"] }.compact
   end
 
   def self.page_ranks_min(community_id)
@@ -208,8 +208,13 @@ class TwitterAnalyser
     community_edges
   end
 
-  def self.draw_chart(title, x_label, y_label, data, file_name, legend=true)
+  def self.draw_chart(title, x_label, y_label, data, file_name, legend=true, additional_legend="")
     bar = Gruff::Bar.new
+
+    bar.marker_font_size = 11
+    bar.legend_font_size = 12
+    bar.title_font_size = 15
+    bar.legend_box_size = 10
 
     bar.title = title
     bar.x_axis_label = x_label
@@ -222,6 +227,12 @@ class TwitterAnalyser
       bar.data(id, e)
     end
 
+    if additional_legend
+      File.open(File.join('images', "#{file_name}_legend.txt"), 'w') do |f|
+        f.puts(additional_legend)
+      end
+    end
+    
     dest = File.join('images', "#{file_name}.png")
     bar.write(dest)
   end
