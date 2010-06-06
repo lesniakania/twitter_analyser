@@ -27,8 +27,8 @@ clear_logs
     [Time.utc(2006, 1), Time.utc(2010, 1, 17)],
     [Time.utc(2006, 1), Time.utc(2010, 1, 18)],
     [Time.utc(2006, 1), Time.utc(2010, 1, 19)],
-    [Time.utc(2006, 1), Time.utc(2010, 1, 2)],
-    [Time.utc(2006, 1), Time.utc(2010, 1, 3)]
+    [Time.utc(2006, 1), Time.utc(2010, 2)],
+    [Time.utc(2006, 1), Time.utc(2010, 3)]
   ].each do |begin_date, end_date|
     inner_dir = File.join(dir, number.to_s)
     analyse(definition, inner_dir, begin_date, end_date, number)
@@ -37,15 +37,8 @@ clear_logs
   TwitterAnalyser.draw_dynamics_statistics(dir)
 end
 
-TwitterAnalyser::COMMUNITY_DEFINITIONS.each_value do |definition|
-  Log.filter(:community_definition => definition).order(:number).all.each do |log|
-    stat = TwitterAnalyser.dynamics_stat(log)
-    puts "log.id:\t\t\t#{log.id}"
-    puts "users count:\t\t#{stat.users_count}"
-    puts "rejected users count:\t#{stat.rejected_users_count}"
-    puts "new users count:\t#{stat.new_users_count}"
-    puts "mapping:"
-    p stat.next_communities_mapping
-    puts
-  end
+[[:weak_community, 'weak_communities'], [:strong_community, 'strong_communities'], [:group, 'groups']].each do |definition, dir|
+  TwitterAnalyser.draw_dynamics_graph(definition, 1, 5, dir)
+  TwitterAnalyser.save_dynamics(definition, dir)
 end
+

@@ -158,10 +158,63 @@ class TwitterAnalyser
       end
     end
     
-    prev_communities_users_ids = log.prev_logs.map { |l| l.log_users.map { |u| u.user_id } }.flatten
+    prev_communities_users_ids = log.prev_logs.map { |l| l.log_users.map { |u| u.user_id } }.flatten.uniq
     new_users_count = log.log_users.count { |u| !prev_communities_users_ids.include?(u.user_id) }
 
-    DynamicsStat.new(users_count, next_communities_mapping, rejected_users_count, new_users_count)
+    DynamicsStat.new(log.community_id, users_count, next_communities_mapping, rejected_users_count, new_users_count)
+  end
+
+  def self.save_dynamics(definition, dir='.')
+    definition_nr = COMMUNITY_DEFINITIONS[definition]
+    File.open(File.join(dir, 'dynamic_stats.dat'), 'w') do |f|
+      f.puts '*'*100
+      f.puts definition
+      f.puts '*'*100
+      f.puts
+      Log.filter(:community_definition => definition_nr).order(:number).all.each do |log|
+        stat = TwitterAnalyser.dynamics_stat(log)
+        f.puts "log.number:\t\t#{log.number}"
+        f.puts "log.id:\t\t\t#{log.id}"
+        f.puts "community_id\t\t#{log.community_id}"
+        f.puts "users count:\t\t#{stat.users_count}"
+        f.puts "rejected users count:\t#{stat.rejected_users_count}"
+        f.puts "new users count:\t#{stat.new_users_count}"
+        f.puts "mapping:"
+        f.puts stat.next_communities_mapping
+        f.puts
+      end
+      f.puts
+    end
+  end
+
+  def self.draw_dynamics_graph(definition, start_nr, end_nr, dir='.')
+    definition_nr = TwitterAnalyser::COMMUNITY_DEFINITIONS[definition]
+    dg = RGL::DirectedAdjacencyGraph.new
+
+    nr = start_nr
+    prev_nodes = {}
+    Log.filter(:community_definition => definition_nr, :number => nr).each do |log|
+      prev_nodes[log.id] = TwitterAnalyser.dynamics_stat(log)
+    end
+    while nr<=end_nr
+      nr += 1
+      current_nodes = {}
+      Log.filter(:community_definition => definition_nr, :number => nr).each do |log|
+        current_nodes[log.id] = TwitterAnalyser.dynamics_stat(log)
+      end
+
+      prev_nodes.each_value do |node|
+        node.next_communities_mapping.each do |next_node, users_count|
+          dg.add_edge(node, current_nodes[next_node]) if users_count>0
+        end
+      end
+
+      prev_nodes = current_nodes
+    end
+
+    src = File.join("images", dir, 'dynamics')
+    dg.write_to_graphic_file("png", src)
+    `rm -rf images/#{dir}/*.dot`
   end
 
   def self.draw_dynamics_statistics(dir='.')
