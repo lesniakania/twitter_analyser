@@ -22,7 +22,7 @@ end
 # Alternatively, you can require all the bundled libs at once
 # Bundler.require
 
-require 'spec/rake/spectask'
+#require 'spec/rake/spectask'
 require 'yamler'
 require 'sequel'
 require 'rgl/adjacency'

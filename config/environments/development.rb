@@ -1,4 +1,4 @@
-require 'config/init'
+require 'config/init.rb'
 
 DB = Sequel.connect(
   :adapter => DataBase::Config['development']['adapter'],

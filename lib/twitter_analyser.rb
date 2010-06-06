@@ -5,6 +5,9 @@ require 'lib/models/user_follower'
 require 'lib/models/community'
 require 'lib/models/community_node'
 require 'lib/models/sequence_freq'
+require 'lib/models/log'
+require 'lib/models/log_user'
+require 'lib/models/dynamics_stat'
 require 'social_network_analyser'
 require 'graph'
 require 'node'
@@ -14,25 +17,41 @@ require 'lib/sequences/prefix_span'
 class TwitterAnalyser
   attr_accessor :graph, :nodes, :edges
 
-  def initialize
+  MIN_STRENGTH = 92
+  COMMUNITY_DEFINITIONS = { :weak_community => 0, :strong_community => 1, :group => 2 }
+
+  def initialize(begin_date=nil, end_date=nil)
     puts 'Init started...'
+
     self.nodes = {}
-    User.order(:id).limit(100).each do |u|
-    #User.order(:id).limit(3000).each do |u|
-    #User.each do |u|
-      self.nodes[u.id] = Node.new(u.id) if u.twitts.any? { |t| t.parent && t.parent.user_id }
-    end
-    puts 'Users processed...'
     self.edges = []
     twitts = []
-    Twitt.filter('twitts.parent_id is not null').eager_graph(:parent).each do |set|
-      edge = [self.nodes[set[:twitts].user_id], self.nodes[set[:parent].user_id]]
-      self.edges << Edge.new(*edge) if edge.none? { |o| o.nil? }
-      twitts << set[:twitts]
+    if begin_date && end_date
+      User.each do |u|
+        self.nodes[u.id] = Node.new(u.id) if u.twitts.any? { |t| t.parent && t.parent.user_id && t.date > begin_date && t.date <= end_date }
+      end
+      puts 'Users processed...'
+
+      Twitt.filter("twitts.parent_id is not null and twitts.date > DATE('#{begin_date}') and twitts.date <= DATE('#{end_date}')").eager_graph(:parent).each do |set|
+        edge = [self.nodes[set[:twitts].user_id], self.nodes[set[:parent].user_id]]
+        self.edges << Edge.new(*edge) if edge.none? { |o| o.nil? }
+        twitts << set[:twitts]
+      end
+    else
+      User.each do |u|
+        self.nodes[u.id] = Node.new(u.id) if u.twitts.any? { |t| t.parent && t.parent.user_id }
+      end
+
+      Twitt.filter('twitts.parent_id is not null').eager_graph(:parent).each do |set|
+        edge = [self.nodes[set[:twitts].user_id], self.nodes[set[:parent].user_id]]
+        self.edges << Edge.new(*edge) if edge.none? { |o| o.nil? }
+        twitts << set[:twitts]
+      end
     end
     puts 'Twitts processed...'
 
     puts 'Prefix span started...'
+    clear_sequences
     PrefixSpan.new(twitts).find_frequent
     puts 'Prefix span finished.'
 
@@ -91,7 +110,7 @@ class TwitterAnalyser
 
   def self.draw_frequent_sequences_statistics(dir)
     data = frequent_sequences_group_counts
-    draw_chart("Frequent sequences group count", "sequence", "group count", data, File.join(dir, "frequent_sequences_statistics_chart"), false)
+    draw_chart("Frequent sequences group count", "sequence", "group count", data, File.join(dir, "frequent_sequences_statistics_chart"))
   end
 
   def self.draw_dendrogram(dir='.')
@@ -106,15 +125,73 @@ class TwitterAnalyser
     `rm -rf images/#{dir}/*.dot`
   end
 
-  def self.cutoff_communities(community, min_strength)
+  def self.cutoff_communities(community, min_strength, number=1)
     if community.parent && community.strength<=min_strength
       community.update(:cutoff => true)
+      community_users = community.users
+      log = Log.create(:community_id => community.id, :number => number, :users_count => community_users.count)
+      community_users.each { |u| log.add_log_user(LogUser.create(:user_id => u.id)) }
+      log.save
     else
       subcommunities = Community.filter(:parent_id => community.id).all
       subcommunities.each do |sub|
-        cutoff_communities(sub, min_strength)
+        cutoff_communities(sub, min_strength, number)
       end
     end
+  end
+
+  def self.dynamics_stat(log)
+    users_count = log.log_users.count
+
+    next_communities_mapping = {}
+    next_communities_logs = log.next_logs.all
+    next_communities_logs.each do |l|
+      next_communities_mapping[l.id] = 0
+    end
+    rejected_users_count = 0
+    log.log_users.each do |u|
+      next_community_log = next_communities_logs.select { |l| !LogUser.filter(:user_id => u.user_id, :log_id => l.id).first.nil? }.first
+      if next_community_log
+        next_communities_mapping[next_community_log.id] += 1
+      else
+        rejected_users_count += 1
+      end
+    end
+    
+    prev_communities_users_ids = log.prev_logs.map { |l| l.log_users.map { |u| u.user_id } }.flatten
+    new_users_count = log.log_users.count { |u| !prev_communities_users_ids.include?(u.user_id) }
+
+    DynamicsStat.new(users_count, next_communities_mapping, rejected_users_count, new_users_count)
+  end
+
+  def self.draw_dynamics_statistics(dir='.')
+    line_chart = Gruff::Line.new
+
+    line_chart.marker_font_size = 11
+    line_chart.legend_font_size = 12
+    line_chart.title_font_size = 15
+    line_chart.legend_box_size = 10
+
+    line_chart.title = "Dynamics Statistics for cutted off communities by time periods"
+    line_chart.x_axis_label = "time period"
+    line_chart.y_axis_label = "users count"
+
+    Community.filter(:cutoff => true).each do |community|
+      data = []
+      Log.filter(:community_id => community.id).order(:number).each do |log|
+        data << log.users_count
+      end
+      line_chart.data(community.id.to_s, data)
+    end
+
+    labels_hash = {}
+    Log.order(:number).map { |l| l.number }.uniq.each_with_index do |number, i|
+      labels_hash[i] = number.to_s
+    end
+    line_chart.labels = labels_hash
+
+    dest = File.join('images', dir, "dynamics_statistics.png")
+    line_chart.write(dest)
   end
 
   def self.draw_followers_statistics(dir='.')

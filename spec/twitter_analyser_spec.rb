@@ -1,8 +1,36 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 require 'twitter_analyser'
 
+DIR = File.join('test', 'without_periods')
 
 describe TwitterAnalyser do
+  describe "initialize" do
+    it "should retrieve twitts from given period time properly" do
+      Day = 60*60*24
+      Today = Time.now
+      users = (0..2).map { User.create }
+      twitt0 = Twitt.create(:id => "Twitt-00", :user => users[0], :date => Today)
+      twitt1 = Twitt.create(:id => "Twitt-10", :user => users[1], :date => Today+Day)
+      twitt1.parent = twitt0
+      twitt1.save
+      twitt2 = Twitt.create(:id => "Twitt-20", :user => users[2], :date => Today+2*Day)
+      twitt2.parent = twitt1
+      twitt2.save
+
+      twitt0 = Twitt.create(:id => "Twitt-01", :user => users[0], :date => Today+2*Day)
+      twitt1 = Twitt.create(:id => "Twitt-11", :user => users[1], :date => Today+3*Day)
+      twitt1.parent = twitt0
+      twitt1.save
+      twitt2 = Twitt.create(:id => "Twitt-21", :user => users[2], :date => Today+7*Day)
+      twitt2.parent = twitt1
+      twitt2.save
+
+      t = TwitterAnalyser.new(Today-Day, Today+3*Day)
+      Set.new(t.nodes.keys).should == Set.new(users[1..2].map { |u| u.id })
+      t.edges.size.should == 1
+    end
+  end
+
   describe "communities detection" do
     before(:each) do
       @users = (0..5).map { User.create }
@@ -58,8 +86,8 @@ describe TwitterAnalyser do
 
     describe "detect communities" do
       it "should detect twitter communities and store them to database" do
-        expected_community1 = Set.new([5, 6, 4])
-        expected_community2 = Set.new([1, 2, 3])
+        expected_community1 = Set.new([1, 2, 3])
+        expected_community2 = Set.new([5, 6, 4])
 
         @community_graph.subgraphs.map { |s| Set.new(s.nodes.keys) }.should == [expected_community1, expected_community2]
 
@@ -99,21 +127,21 @@ describe TwitterAnalyser do
       end
 
       it "should compute user follower dependencies % in communities" do
-        community_id = 3
+        community_id = 2
         TwitterAnalyser.followers_percent(community_id).should == 3.0/4
       end
 
       it "should draw dendrogram properly" do
-        lambda { TwitterAnalyser.draw_dendrogram('test') }.should_not raise_error
+        lambda { TwitterAnalyser.draw_dendrogram(DIR) }.should_not raise_error
       end
 
       it "should draw followers statistics properly" do
-        lambda { TwitterAnalyser.draw_followers_statistics("test") }.should_not raise_error
+        lambda { TwitterAnalyser.draw_followers_statistics(DIR) }.should_not raise_error
       end
 
       it "should draw page ranks statistics properly" do
         TwitterAnalyser.compute_page_ranks!(@community_graph)
-        lambda { TwitterAnalyser.draw_page_ranks_statistics("test") }.should_not raise_error
+        lambda { TwitterAnalyser.draw_page_ranks_statistics(DIR) }.should_not raise_error
       end
     end
   end
@@ -160,12 +188,81 @@ describe TwitterAnalyser do
         TwitterAnalyser.sequence_percent(@root).should == 100
         TwitterAnalyser.sequence_percent(@c1).should == 50
         TwitterAnalyser.sequence_percent(@c2).should == 0
-        TwitterAnalyser.draw_sequences_percent_statistics('test')
+        TwitterAnalyser.draw_sequences_percent_statistics(DIR)
       end
 
       it "should compute group members count for most frequent sequences" do
         TwitterAnalyser.frequent_sequences_group_counts.should == [[@key1, 4], [@key2, 2]]
-        TwitterAnalyser.draw_frequent_sequences_statistics('test')
+        TwitterAnalyser.draw_frequent_sequences_statistics(DIR)
+      end
+    end
+
+    describe "dynamics" do
+      it "should draw dynamics statistics properly" do
+        [1,2,3].each do |number|
+          communities = [0..2].map { Community.create(:cutoff => true) }
+          communities.each do |community|
+            community.id.times do
+              community.add_user(User.create)
+              community.save
+              Log.create(:community_id => community.id, :number => number, :users_count => community.users.count)
+            end
+          end
+        end
+        TwitterAnalyser.draw_dynamics_statistics(DIR)
+      end
+
+      it "should compute dynamics stats properly" do
+        Log.create(
+            :number => 1, :community_id => 777,
+            :community_definition => TwitterAnalyser::COMMUNITY_DEFINITIONS[:strong_community]
+        )
+
+        logs1 = (1..3).map { |i| Log.create(
+            :number => 1, :community_id => i,
+            :community_definition => TwitterAnalyser::COMMUNITY_DEFINITIONS[:weak_community]) }
+        (1..3).each { |i| logs1[0].add_log_user(LogUser.create(:user_id => i)) }
+        (4..11).each { |i| logs1[1].add_log_user(LogUser.create(:user_id => i)) }
+        (12..16).each { |i| logs1[2].add_log_user(LogUser.create(:user_id => i)) }
+        
+        logs2 = (1..2).map { |i| Log.create(
+            :number => 2, :community_id => i,
+            :community_definition => TwitterAnalyser::COMMUNITY_DEFINITIONS[:weak_community]) }
+        (1..2).each { |i| logs2[0].add_log_user(LogUser.create(:user_id => i)) }
+        (5..7).each { |i| logs2[0].add_log_user(LogUser.create(:user_id => i)) }
+        (12..16).each { |i| logs2[1].add_log_user(LogUser.create(:user_id => i)) }
+        (17..18).each { |i| logs2[1].add_log_user(LogUser.create(:user_id => i)) }
+
+        dynamics = TwitterAnalyser.dynamics_stat(logs1[0])
+        dynamics.users_count.should == 3
+        dynamics.next_communities_mapping.should == { logs2[0].id => 2, logs2[1].id => 0 }
+        dynamics.rejected_users_count.should == 1
+        dynamics.new_users_count.should == 3
+
+        dynamics = TwitterAnalyser.dynamics_stat(logs1[1])
+        dynamics.users_count.should == 8
+        dynamics.next_communities_mapping.should == { logs2[0].id => 3, logs2[1].id => 0 }
+        dynamics.rejected_users_count.should == 5
+        dynamics.new_users_count.should == 8
+
+        dynamics = TwitterAnalyser.dynamics_stat(logs1[2])
+        dynamics.users_count.should == 5
+        dynamics.next_communities_mapping.should == { logs2[0].id => 0, logs2[1].id => 5 }
+        dynamics.rejected_users_count.should == 0
+        dynamics.new_users_count.should == 5
+
+
+        dynamics = TwitterAnalyser.dynamics_stat(logs2[0])
+        dynamics.users_count.should == 5
+        dynamics.next_communities_mapping.should == {}
+        dynamics.rejected_users_count.should == 5
+        dynamics.new_users_count.should == 0
+
+        dynamics = TwitterAnalyser.dynamics_stat(logs2[1])
+        dynamics.users_count.should == 7
+        dynamics.next_communities_mapping.should == {}
+        dynamics.rejected_users_count.should == 7
+        dynamics.new_users_count.should == 2
       end
     end
   end

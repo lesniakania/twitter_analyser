@@ -1,0 +1,5 @@
+8 => riddle
+17 => leisa
+30 => iand
+31 => CriticalSteph
+42 => riddle
