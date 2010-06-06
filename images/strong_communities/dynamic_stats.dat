@@ -1,0 +1,59 @@
+****************************************************************************************************
+strong_community
+****************************************************************************************************
+
+log.number:		1
+log.id:			60
+community_id		0
+users count:		0
+rejected users count:	0
+new users count:	0
+mapping:
+{9=>0, 10=>0}
+
+log.number:		2
+log.id:			9
+community_id		2
+users count:		11
+rejected users count:	11
+new users count:	11
+mapping:
+{11=>0}
+
+log.number:		2
+log.id:			10
+community_id		3
+users count:		16
+rejected users count:	16
+new users count:	16
+mapping:
+{11=>0}
+
+log.number:		3
+log.id:			11
+community_id		5
+users count:		6
+rejected users count:	6
+new users count:	6
+mapping:
+{24=>0}
+
+log.number:		4
+log.id:			24
+community_id		7
+users count:		7
+rejected users count:	0
+new users count:	7
+mapping:
+{44=>7}
+
+log.number:		5
+log.id:			44
+community_id		7
+users count:		7
+rejected users count:	7
+new users count:	0
+mapping:
+{}
+
+

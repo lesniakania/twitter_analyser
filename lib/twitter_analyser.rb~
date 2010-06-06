@@ -166,7 +166,7 @@ class TwitterAnalyser
 
   def self.save_dynamics(definition, dir='.')
     definition_nr = COMMUNITY_DEFINITIONS[definition]
-    File.open(File.join('images', dir, 'dynamic_stats.dat'), 'w') do |f|
+    File.open(File.join(dir, 'dynamic_stats.dat'), 'w') do |f|
       f.puts '*'*100
       f.puts definition
       f.puts '*'*100
