@@ -12,6 +12,12 @@
  * sudo gem install bundler
  * bundle install
 
+## Configuration
+
+ * setup database of choice
+ * copy config/database.yml.example to config/database.yml
+ * edit config/database.yml with your database parameters
+
 ## Run
 
  * ruby lib/main.rb
