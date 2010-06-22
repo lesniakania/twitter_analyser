@@ -1,6 +1,11 @@
 # TwitterAnalyser
 
- * findes the most common twitter sequences, analyse social network, finds communities
+ * finds the most common twitter sequences, analyses social networks, finds communities
+
+## Requirements
+
+ * ruby >= 1.8.7
+ * rubygems >= 1.3.7
 
 ## Install
 
