@@ -17,6 +17,7 @@
  * setup database of choice
  * copy config/database.yml.example to config/database.yml
  * edit config/database.yml with your database parameters
+ * use twitter.backup to add data to your database
 
 ## Run
 
